@@ -6,11 +6,11 @@ from PIL import Image, ImageDraw, ImageFilter
 import compose as C
 
 
-def glowed(lg, col, blur=18, sh_off=8):
+def glowed(lg, col, blur=18, sh_off=8, sh_col=None):
     pad = 40
     out = Image.new('RGBA', (lg.width + 2 * pad, lg.height + 2 * pad), (0, 0, 0, 0))
     a = lg.split()[3]
-    sh = Image.new('RGBA', lg.size, (0, 0, 0, 255)); sh.putalpha(a.point(lambda v: int(v * .85)))
+    sh = Image.new('RGBA', lg.size, (sh_col or (0, 0, 0)) + (255,)); sh.putalpha(a.point(lambda v: int(v * .85)))
     shl = Image.new('RGBA', out.size, (0, 0, 0, 0)); shl.alpha_composite(sh, (pad, pad + sh_off))
     out.alpha_composite(shl.filter(ImageFilter.GaussianBlur(10)))
     gl = Image.new('RGBA', lg.size, col + (255,)); gl.putalpha(a)
@@ -21,7 +21,7 @@ def glowed(lg, col, blur=18, sh_off=8):
     return out, pad
 
 
-def stock_block(width, col):
+def stock_block(width, col, shade=None):
     lg = C.LOGO.resize((width, int(C.LOGO.height * width / C.LOGO.width)), Image.LANCZOS)
     tmp = ImageDraw.Draw(Image.new('L', (1, 1)))
     size = 40
@@ -30,8 +30,8 @@ def stock_block(width, col):
     font = C.F('mont800', size)
     bw = tmp.textlength('LA LOUVIÈRE', font=font)
     tracking = max(0, (width * 0.98 - bw) / 10)
-    dark = tuple(int(c * .35) for c in col)
-    sub = C.text_layer('LA LOUVIÈRE', font, fill=col, glow=dark, glow_r=6, tracking=tracking)
+    dark = shade or tuple(int(c * .35) for c in col)
+    sub = C.text_layer('LA LOUVIÈRE', font, fill=col, glow=dark, glow_r=6, tracking=tracking, shadow=shade is None)
     if sub.width > width:
         sub = sub.resize((width, int(sub.height * width / sub.width)), Image.LANCZOS)
     gap = int(width * 0.01)
@@ -39,7 +39,7 @@ def stock_block(width, col):
     out = Image.new('RGBA', (W, lg.height + gap + sub.height), (0, 0, 0, 0))
     out.alpha_composite(lg, ((W - lg.width) // 2, 0))
     out.alpha_composite(sub, ((W - sub.width) // 2, lg.height + gap))
-    g, pad = glowed(out, (0, 0, 0), blur=8, sh_off=4)
+    g, pad = glowed(out, shade or (0, 0, 0), blur=8, sh_off=4, sh_col=shade)
     return g, pad
 
 
@@ -50,7 +50,8 @@ def main():
     bg = bg.resize((W, H), Image.LANCZOS)
     scx, sy, sw, acx, ay, aw = map(float, a[4:10])
     col = tuple(int(x) for x in a[10:13])
-    s, p = stock_block(int(sw * W), col)
+    shade = tuple(int(x) for x in a[13:16]) if len(a) >= 16 else None
+    s, p = stock_block(int(sw * W), col, shade)
     bg.alpha_composite(s, (int(scx * W - s.width / 2), int(sy * H - p)))
     ap = C.APEROS.resize((int(aw * W), int(C.APEROS.height * aw * W / C.APEROS.width)), Image.LANCZOS)
     g, p = glowed(ap, col)
