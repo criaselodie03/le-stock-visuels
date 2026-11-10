@@ -45,9 +45,19 @@ WHITE = np.array([1.0, 1.0, 1.0], np.float32)
 rng = np.random.default_rng(7)
 sparks = [(rng.uniform(0, W), rng.uniform(0, H * 0.75), rng.uniform(0, T), rng.uniform(4, 10)) for _ in range(60)]
 
+MUSIC = sys.argv[6] if len(sys.argv) > 6 else None
+if MUSIC:
+    ain = ['-i', voice, '-stream_loop', '-1', '-i', MUSIC]
+    fc = ('[1:a]adelay=400|400,apad,asplit=2[v][sc];'
+          f'[2:a]atrim=0:{T:.2f},volume=0.55,afade=t=in:d=0.3,afade=t=out:st={T-1.2:.2f}:d=1.2[m];'
+          '[m][sc]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=400[md];'
+          '[v][md]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95[a]')
+else:
+    ain = ['-i', voice]
+    fc = '[1:a]adelay=400|400,apad[a]'
 ff = subprocess.Popen(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgb24',
-                       '-s', f'{W}x{H}', '-r', str(FPS), '-i', '-', '-i', voice,
-                       '-filter_complex', '[1:a]adelay=400|400,apad[a]', '-map', '0:v', '-map', '[a]',
+                       '-s', f'{W}x{H}', '-r', str(FPS), '-i', '-'] + ain + [
+                       '-filter_complex', fc, '-map', '0:v', '-map', '[a]',
                        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p',
                        '-profile:v', 'high', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', '192k',
                        '-t', f'{T:.2f}', dst], stdin=subprocess.PIPE)
